@@ -1,72 +1,64 @@
+import os
+import gdown
+import uvicorn
+from fastapi import FastAPI
 import tensorflow as tf
 import numpy as np
-import requests
-import os
 from PIL import Image
+from io import BytesIO
 
-# Google Drive File ID (Extracted from the link)
-FILE_ID = "1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3"
+# Initialize FastAPI app
+app = FastAPI()
 
-# Download the model from Google Drive
-def download_model(file_id, filename="skin_disease_model.h5"):
-    drive_url = f"https://drive.google.com/uc?export=download&id={file_id}"
-    response = requests.get(drive_url, stream=True)
+# 🔹 Load model from Google Drive if not available
+MODEL_URL = "https://drive.google.com/uc?id=1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3"
+MODEL_PATH = "model.h5"
 
-    if response.status_code == 200:
-        with open(filename, "wb") as f:
-            for chunk in response.iter_content(chunk_size=1024):
-                f.write(chunk)
-        print(f"✅ Model downloaded successfully: {filename}")
-        return filename
-    else:
-        print("❌ Error downloading model.")
-        return None
+if not os.path.exists(MODEL_PATH):
+    print("Downloading model...")
+    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
 
-# Load the model
-def load_model():
-    model_filename = "skin_disease_model.h5"
-    
-    # Check if the model exists locally; if not, download it
-    if not os.path.exists(model_filename):
-        print("🔄 Downloading model...")
-        model_filename = download_model(FILE_ID, model_filename)
-    
-    if model_filename:
-        model = tf.keras.models.load_model(model_filename)
-        print("✅ Model loaded successfully!")
-        return model
-    else:
-        print("❌ Failed to load the model.")
-        return None
+# 🔹 Load the model
+try:
+    model = tf.keras.models.load_model(MODEL_PATH)
+    print("✅ Model loaded successfully!")
+except Exception as e:
+    print(f"❌ Error loading model: {e}")
 
-# Preprocess image for prediction
-def preprocess_image(image_path):
-    img = Image.open(image_path).resize((224, 224))  # Resize to model's input shape
-    img_array = np.array(img) / 255.0  # Normalize pixel values
-    img_array = np.expand_dims(img_array, axis=0)  # Add batch dimension
-    return img_array
+# 🔹 Define Class Labels
+CLASS_LABELS = {
+    0: "Actinic keratoses (akiec)",
+    1: "Basal cell carcinoma (bcc)",
+    2: "Benign keratosis-like lesions (bkl)",
+    3: "Dermatofibroma (df)",
+    4: "Melanoma (mel)",
+    5: "Melanocytic nevi (nv)",
+    6: "Vascular lesions (vasc)"
+}
 
-# Make prediction
-def predict(image_path, model):
-    processed_image = preprocess_image(image_path)
-    prediction = model.predict(processed_image)
-    predicted_class = np.argmax(prediction, axis=1)[0]  # Get class index
-    confidence = np.max(prediction)  # Get confidence score
-    
-    # Class labels (Change these as per your model)
-    class_labels = ["Eczema", "Psoriasis", "Melanoma", "Acne", "Healthy Skin"]
+# 🔹 Prediction API Endpoint
+@app.post("/predict")
+async def predict(file: bytes):
+    try:
+        # Load image
+        image = Image.open(BytesIO(file)).resize((224, 224))  # Resize for model
+        image_array = np.array(image) / 255.0  # Normalize
+        image_array = np.expand_dims(image_array, axis=0)  # Add batch dimension
 
-    print(f"🔍 Prediction: {class_labels[predicted_class]} (Confidence: {confidence:.2f})")
-    return class_labels[predicted_class], confidence
+        # Make prediction
+        predictions = model.predict(image_array)
+        predicted_class = np.argmax(predictions, axis=1)[0]
+        confidence = float(np.max(predictions))
 
-# Run the program
+        return {
+            "prediction": CLASS_LABELS[predicted_class],
+            "confidence": confidence
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+# 🔹 Run API (Uses Render's PORT)
 if __name__ == "__main__":
-    model = load_model()
-    
-    if model:
-        image_path = input("Enter the image file path: ")
-        if os.path.exists(image_path):
-            disease, conf = predict(image_path, model)
-            print(f"🔹 Predicted Skin Condition: {disease} ({conf * 100:.2f}% confidence)")
-        else:
-            print("❌ Image file not found!")
+    port = int(os.getenv("PORT", 8000))  # Render auto-assigns a port
+    uvicorn.run(app, host="0.0.0.0", port=port)
