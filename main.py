@@ -12,11 +12,10 @@ CORS(app)  # Allow cross-origin requests from React Native
 
 # Google Drive file ID (Extract from your shared link)
 DRIVE_FILE_ID = "1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3"
-MODEL_PATH = "skin_disease_model.h5"
+
 
 def download_model():
     """Downloads the model from Google Drive if it is not present locally."""
-    if not os.path.exists(MODEL_PATH):
         print("Downloading model from Google Drive...")
         url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
         response = requests.get(url, stream=True)
