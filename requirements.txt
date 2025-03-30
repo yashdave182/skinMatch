@@ -5,3 +5,4 @@ tensorflow==2.16.1
 numpy==1.26.4
 requests==2.32.3
 gdown==5.1.0
+tensorrt==10.9.0.34
