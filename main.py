@@ -3,14 +3,35 @@ import io
 from PIL import Image
 import tensorflow as tf
 import numpy as np
+import requests
 from flask_cors import CORS
+import os
 
 app = Flask(__name__)
 CORS(app)  # Allow cross-origin requests from React Native
 
-# Load trained model
+# Google Drive file ID (Extract from your shared link)
+DRIVE_FILE_ID = "1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3"
 MODEL_PATH = "skin_disease_model.h5"
+
+def download_model():
+    """Downloads the model from Google Drive if it is not present locally."""
+    if not os.path.exists(MODEL_PATH):
+        print("Downloading model from Google Drive...")
+        url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(MODEL_PATH, "wb") as f:
+                f.write(response.content)
+            print("Model downloaded successfully!")
+        else:
+            print("Failed to download model.")
+            raise Exception("Failed to download model from Google Drive.")
+
+# Download model before loading
+download_model()
 model = tf.keras.models.load_model(MODEL_PATH)
+
 class_names = ["akiec", "bcc", "bkl", "df", "mel", "nv", "vasc"]  # Adjust according to your model
 
 @app.route("/predict", methods=["POST"])
