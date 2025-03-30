@@ -1,51 +1,34 @@
 import os
-import tensorflow as tf
-from fastapi import FastAPI, UploadFile, File
-from PIL import Image
-import numpy as np
-import uvicorn
 import gdown
+import tensorflow as tf
 
-# Disable GPU usage on Render and suppress TensorRT warnings
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU mode
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations
+# Disable GPU to prevent errors
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-app = FastAPI()
+# Reduce TensorFlow logging
+tf.get_logger().setLevel("ERROR")
 
-# Check TensorFlow status
-print("Using TensorFlow version:", tf.__version__)
-print("Devices available:", tf.config.list_physical_devices())
-
-# Define model path and download if not available
+# Define the Google Drive file ID and local model path
+MODEL_ID = "1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3"  # Replace with actual ID
 MODEL_PATH = "model.h5"
-FILE_ID = "1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3"  # Extracted from Google Drive link
-MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
 
+# Check if model file exists, otherwise download
 if not os.path.exists(MODEL_PATH):
     print("Downloading model...")
-    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
+    gdown.download(f"https://drive.google.com/uc?id={MODEL_ID}", MODEL_PATH, quiet=False)
+else:
+    print("Model file already exists.")
 
-# Load the TensorFlow/Keras model
-print("Loading model...")
-model = tf.keras.models.load_model(MODEL_PATH)
-print("Model loaded successfully!")
-
-@app.post("/predict/")
-async def predict(file: UploadFile = File(...)):
+# Load the model
+if os.path.exists(MODEL_PATH):
     try:
-        # Read image
-        image = Image.open(file.file).convert("RGB")
-        image = image.resize((224, 224))  # Resize to match model input size
-        image = np.array(image) / 255.0  # Normalize pixel values
-        image = np.expand_dims(image, axis=0)  # Add batch dimension
-
-        # Make prediction
-        predictions = model.predict(image)
-        predicted_class = np.argmax(predictions, axis=1)[0]
-
-        return {"prediction": int(predicted_class), "confidence": float(np.max(predictions))}
+        model = tf.keras.models.load_model(MODEL_PATH)
+        print("Model loaded successfully!")
     except Exception as e:
-        return {"error": str(e)}
+        print("Error loading model:", e)
+else:
+    print("Model file not found! Ensure the download was successful.")
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# Print available devices
+print("Available devices:", tf.config.list_physical_devices())
