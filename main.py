@@ -6,7 +6,7 @@ import numpy as np
 import uvicorn
 import gdown
 
-# Disable GPU usage on Render and TensorRT warnings
+# Disable GPU usage on Render and suppress TensorRT warnings
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU mode
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations
 
@@ -18,7 +18,9 @@ print("Devices available:", tf.config.list_physical_devices())
 
 # Define model path and download if not available
 MODEL_PATH = "model.h5"
-MODEL_URL = "https://drive.google.com/file/d/1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3/view?usp=drive_link"  # Replace with actual model link
+FILE_ID = "1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3"  # Extracted from Google Drive link
+MODEL_URL = f"https://drive.google.com/uc?id={FILE_ID}"
+
 if not os.path.exists(MODEL_PATH):
     print("Downloading model...")
     gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
