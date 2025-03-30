@@ -10,7 +10,8 @@ import tempfile
 app = Flask(__name__)
 CORS(app)  # Allow cross-origin requests from React Native
 
-# Google Drive file ID (Extract from your shared link)
+# Google Drive file ID extracted from:
+# https://drive.google.com/file/d/1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3/view?usp=sharing
 DRIVE_FILE_ID = "1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3"
 
 def download_model():
