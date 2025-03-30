@@ -1,64 +1,49 @@
 import os
-import gdown
-import uvicorn
-from fastapi import FastAPI
 import tensorflow as tf
-import numpy as np
+from fastapi import FastAPI, UploadFile, File
 from PIL import Image
-from io import BytesIO
+import numpy as np
+import uvicorn
+import gdown
 
-# Initialize FastAPI app
+# Disable GPU usage on Render and TensorRT warnings
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Force CPU mode
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations
+
 app = FastAPI()
 
-# 🔹 Load model from Google Drive if not available
-MODEL_URL = "https://drive.google.com/uc?id=1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3"
-MODEL_PATH = "model.h5"
+# Check TensorFlow status
+print("Using TensorFlow version:", tf.__version__)
+print("Devices available:", tf.config.list_physical_devices())
 
+# Define model path and download if not available
+MODEL_PATH = "model.h5"
+MODEL_URL = "https://drive.google.com/file/d/1t4hK_d1N8a2nTl-9ZAiXuGb6T8rEcKW3/view?usp=drive_link"  # Replace with actual model link
 if not os.path.exists(MODEL_PATH):
     print("Downloading model...")
     gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
 
-# 🔹 Load the model
-try:
-    model = tf.keras.models.load_model(MODEL_PATH)
-    print("✅ Model loaded successfully!")
-except Exception as e:
-    print(f"❌ Error loading model: {e}")
+# Load the TensorFlow/Keras model
+print("Loading model...")
+model = tf.keras.models.load_model(MODEL_PATH)
+print("Model loaded successfully!")
 
-# 🔹 Define Class Labels
-CLASS_LABELS = {
-    0: "Actinic keratoses (akiec)",
-    1: "Basal cell carcinoma (bcc)",
-    2: "Benign keratosis-like lesions (bkl)",
-    3: "Dermatofibroma (df)",
-    4: "Melanoma (mel)",
-    5: "Melanocytic nevi (nv)",
-    6: "Vascular lesions (vasc)"
-}
-
-# 🔹 Prediction API Endpoint
-@app.post("/predict")
-async def predict(file: bytes):
+@app.post("/predict/")
+async def predict(file: UploadFile = File(...)):
     try:
-        # Load image
-        image = Image.open(BytesIO(file)).resize((224, 224))  # Resize for model
-        image_array = np.array(image) / 255.0  # Normalize
-        image_array = np.expand_dims(image_array, axis=0)  # Add batch dimension
+        # Read image
+        image = Image.open(file.file).convert("RGB")
+        image = image.resize((224, 224))  # Resize to match model input size
+        image = np.array(image) / 255.0  # Normalize pixel values
+        image = np.expand_dims(image, axis=0)  # Add batch dimension
 
         # Make prediction
-        predictions = model.predict(image_array)
+        predictions = model.predict(image)
         predicted_class = np.argmax(predictions, axis=1)[0]
-        confidence = float(np.max(predictions))
 
-        return {
-            "prediction": CLASS_LABELS[predicted_class],
-            "confidence": confidence
-        }
-
+        return {"prediction": int(predicted_class), "confidence": float(np.max(predictions))}
     except Exception as e:
         return {"error": str(e)}
 
-# 🔹 Run API (Uses Render's PORT)
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))  # Render auto-assigns a port
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
